@@ -1,0 +1,9 @@
+bin/
+obj/
+**/bin/
+**/obj/
+node_modules/
+.next/
+.git
+.gitignore
+Dockerfile
