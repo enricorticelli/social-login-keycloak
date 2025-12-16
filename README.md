@@ -80,6 +80,16 @@ Lato frontend/back vengono già propagate le variabili necessarie per parlare co
 - I `NEXT_PUBLIC_*` sono esposti al browser: contengono solo i clientId. I secret restano solo lato server (`/api/oauth/exchange`).
 - Riavvia `npm run dev` dopo aver modificato `.env.local`.
 
+## Abilitare token-exchange e permessi IdP in Keycloak
+
+1. Avvia Keycloak con le feature `token-exchange` e `admin-fine-grained-authz` attive (già in `docker-compose.yml`: `--features=token-exchange,admin-fine-grained-authz`).
+2. In Keycloak Admin, abilita le fine-grained admin permissions: `Realm settings -> Admin permissions -> Abilita`.
+3. Servizio account del client backend: `Clients -> social-login-backend -> Service account roles`, assegna `realm-management -> token-exchange` (già presente nell'export, verifica).
+4. Concedi il permesso di token-exchange sugli Identity Provider:
+   - `Identity Providers -> google -> Permissions -> abilita -> token-exchange`: aggiungi il client `social-login-backend` (policy basata sul client).
+   - Ripeti per `facebook` se usi anche quello.
+5. Gli alias degli IdP devono essere esattamente `google` e `facebook` (coincidono con `subject_issuer` inviato dal frontend).
+
 ## Dettagli del flusso
 
 1. L'utente sceglie Google o Facebook. Il frontend redirige al provider con `response_type=code` e stato salvato in `sessionStorage`.
@@ -109,7 +119,7 @@ Lato frontend/back vengono già propagate le variabili necessarie per parlare co
 
 ## Test manuali suggeriti
 
-- `POST http://localhost:5188/auth/exchange` con un token valido ottenuto da `/api/mock-social`
+- `POST http://localhost:5188/auth/exchange` passando un `subjectToken` ottenuto da Google/Facebook e `subjectIssuer` che coincide con l'alias IdP (`google`/`facebook`)
 - `POST http://localhost:5188/auth/refresh` usando il refresh token ricevuto
 - `GET http://localhost:5188/profile` con `Authorization: Bearer <access_token>`
 
