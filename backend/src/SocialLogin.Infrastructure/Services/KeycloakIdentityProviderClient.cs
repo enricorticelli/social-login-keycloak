@@ -69,7 +69,6 @@ internal sealed class KeycloakIdentityProviderClient : IIdentityProviderClient
             ["client_secret"] = _options.ClientSecret,
             ["subject_token"] = command.SubjectToken,
             ["subject_token_type"] = "urn:ietf:params:oauth:token-type:access_token",
-            ["requested_token_type"] = "urn:ietf:params:oauth:token-type:access_token",
             ["scope"] = "openid profile email offline_access"
         };
 

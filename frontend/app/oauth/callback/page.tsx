@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
-type Provider = "google" | "facebook";
+import { saveKeycloakTokens, saveSocialToken } from "../../lib/storage";
+import type { Provider } from "../../lib/types";
 
 function CallbackContent() {
   const router = useRouter();
@@ -45,7 +45,8 @@ function CallbackContent() {
       }
 
       sessionStorage.removeItem(`oauth_state_${provider}`);
-      sessionStorage.setItem("socialToken", JSON.stringify({ provider, token: payload }));
+      saveKeycloakTokens(null);
+      saveSocialToken({ provider, token: payload });
       setMessage("Login riuscito, reindirizzamento in corso...");
       router.replace("/");
     };

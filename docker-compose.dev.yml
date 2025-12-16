@@ -1,0 +1,59 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: keycloak-identity
+    command:
+      - start-dev
+      - --features=token-exchange,admin-fine-grained-authz
+      - --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8181:8080"
+    volumes:
+      - ./keycloak/realm-social-demo.json:/opt/keycloak/data/import/realm-social-demo.json:ro
+
+  backend:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    container_name: backend-net10-dev
+    working_dir: /src
+    command: >
+      sh -c "dotnet restore social-login-keycloak.sln &&
+             DOTNET_USE_POLLING_FILE_WATCHER=1 dotnet watch run --project backend/src/SocialLogin.Api --urls http://0.0.0.0:8080"
+    volumes:
+      - ./:/src
+    depends_on:
+      - keycloak
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Keycloak__Authority: http://keycloak:8080
+      Keycloak__Realm: social-demo
+      Keycloak__ClientId: social-login-backend
+      Keycloak__ClientSecret: backend-secret
+      Keycloak__Audience: social-login-backend
+      AllowedCorsOrigins__0: http://localhost:3000
+    ports:
+      - "5188:8080"
+
+  frontend:
+    image: node:20-alpine
+    container_name: frontend-nextjs-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:5188
+      KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/social-demo/protocol/openid-connect/token
+      MOCK_SOCIAL_CLIENT: mock-social-app
+      MOCK_SOCIAL_USERNAME: demo
+      MOCK_SOCIAL_PASSWORD: demo
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"

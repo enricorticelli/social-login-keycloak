@@ -1,126 +1,120 @@
-# Demo social login con Keycloak
+# Keycloak Social Login Demo
 
-Questa repo contiene un esempio end-to-end che mostra come implementare un flusso di social login **senza usare il form di Keycloak**, ma solo chiamate API + token exchange.
+End-to-end example that performs social login **without** using the Keycloak UI: the frontend gets a real Google/Facebook token, the backend exchanges it with Keycloak via token-exchange, and the resulting tokens are used to call protected APIs.
 
-- **frontend/** – Next.js 14 (App Router) con bottoni reali per Google e Facebook; ottiene il token social e lo scambia con Keycloak
-- **backend/src/SocialLogin.Api** – Minimal API .NET 10 che espone gli endpoint ed è documentata tramite [Scalar](https://github.com/scalar/scalar)
-- **backend/src/SocialLogin.Application**, **.Domain**, **.Infrastructure** – suddivisione clean architecture (contratti, modello di dominio e integrazione Keycloak)
-- **keycloak/** – realm export preconfigurato con i client `social-login-backend`, `social-login-frontend` e IdP social già pronti per token-exchange (usa i tuoi clientId/clientSecret reali)
-- **docker-compose.yml** – avvia Keycloak 24 in modalità dev e importa automaticamente il realm
+- **frontend/** – Next.js 14 (App Router) with a 3-step UI: Social login → Token exchange → Protected calls.
+- **backend/src/SocialLogin.Api** – .NET 10 minimal API exposing endpoints and documented via [Scalar](https://github.com/scalar/scalar).
+- **backend/src/SocialLogin.Application**, **.Domain**, **.Infrastructure** – clean-architecture split (contracts, domain model, Keycloak integration).
+- **keycloak/** – realm export with clients `social-login-backend`, `social-login-frontend` and social IdPs ready for token-exchange (use your real clientId/clientSecret).
+- **docker-compose.yml** – starts Keycloak 24 in dev mode and imports the realm automatically.
 
-## Requisiti
+## Requirements
 
 - Docker + Docker Compose
-- Node.js >= 18 (serve per Next.js 14)
+- Node.js >= 18 (Next.js 14)
 - .NET SDK 10.0+
 
-## Avvio rapido
+## Quick start
 
-### Tutto con Docker Compose
+### All with Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-Questo comando avvia:
+This spins up:
+- **Keycloak** at `http://localhost:8181` (admin/admin) with realm `social-demo` imported.
+- **Backend .NET** at `http://localhost:5188` with Scalar docs at `/scalar/v1`.
+- **Frontend Next.js** at `http://localhost:3000`.
 
-- **Keycloak** su `http://localhost:8181` (admin/admin) con import automatico del realm `social-demo`
-- **Backend .NET** su `http://localhost:5188` con documentazione Scalar su `http://localhost:5188/scalar/v1`
-- **Frontend Next.js** su `http://localhost:3000`
+Then try the flow: **Accedi con Google/Facebook** → **Scambia token con Keycloak** → **/profile**. Use real clientId/clientSecret values for Google/Facebook inside the containers to complete the live loop.
 
-Lato frontend/back vengono già propagate le variabili necessarie per parlare con Keycloak e tra i vari container. Premi **Accedi con Google/Facebook** → **Scambia token con Keycloak** → **/profile** per provare il flusso completo (servono clientId/clientSecret reali nei container se vuoi fare il giro vero).
+### Manual run (local dev)
 
-### Avvio manuale (per sviluppo locale)
+1) **Keycloak**
+```bash
+docker compose up keycloak -d
+```
+Runs at `http://localhost:8181` with admin `admin/admin`. Realm `social-demo` is imported automatically.
 
-1. **Keycloak**
-   ```bash
-   docker compose up keycloak -d
-   ```
-   L'istanza parte su `http://localhost:8181` con utente admin `admin/admin`. Il realm `social-demo` viene importato automaticamente.
+2) **Backend**
+```bash
+dotnet restore social-login-keycloak.sln
+dotnet run --project backend/src/SocialLogin.Api
+```
+Key envs (can be set as `Keycloak__ClientSecret` etc.):
+- `Keycloak:Authority` e.g. `http://localhost:8181`
+- `Keycloak:Realm` e.g. `social-demo`
+- `Keycloak:ClientId` / `Keycloak:ClientSecret` e.g. `social-login-backend` / `backend-secret`
+- `Keycloak:Audience` e.g. `social-login-backend`
 
-2. **Backend**
-   ```bash
-   dotnet restore social-login-keycloak.sln
-   dotnet run --project backend/src/SocialLogin.Api
-   ```
-   Variabili principali (possono essere impostate da env, es. `KEYCLOAK__CLIENTSECRET`):
-   - `Keycloak:Authority` es. `http://localhost:8181`
-   - `Keycloak:Realm` es. `social-demo`
-   - `Keycloak:ClientId`/`ClientSecret` es. `social-login-backend` / `backend-secret`
-   - `Keycloak:Audience` es. `social-login-backend` (l'audience che vuoi nella `aud` del token)
+3) **Frontend**
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
+npm run dev
+```
+Fill Google/Facebook clientId/clientSecret as described below.
 
-3. **Frontend**
-   ```bash
-   cd frontend
-   cp .env.example .env.local
-   npm install
-   npm run dev
-   ```
-   Configura i clientId/clientSecret di Google/Facebook come indicato sotto.
+4) Open `http://localhost:3000`, go through Social login → Exchange → Protected calls. Everything happens via fetch -> backend -> Keycloak; the Keycloak UI is never shown. API docs: `http://localhost:5188/scalar/v1`.
 
-4. Apri `http://localhost:3000`, clicca su **Accedi con Google/Facebook**, poi **Scambia token con Keycloak** e infine chiama `/profile`. Il tutto avviene tramite fetch -> backend -> Keycloak, senza mai mostrare l'interfaccia di Keycloak. La documentazione degli endpoint è disponibile all'URL `http://localhost:5188/scalar/v1`.
-
-## Configurazione credenziali OAuth (Google/Facebook)
+## OAuth credentials (Google / Facebook)
 
 ### Google
-- https://console.cloud.google.com/apis/credentials → **Crea credenziali** → **ID client OAuth** (app web).
-- URI di reindirizzamento autorizzati: `http://localhost:3000/oauth/callback?provider=google` (e eventuali URL di produzione).
-- Copia `client_id` / `client_secret` e mettili in `.env.local`:
-  - `GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (stesso valore)
+- https://console.cloud.google.com/apis/credentials → Create OAuth client (web app).
+- Authorized redirect URI: `http://localhost:3000/oauth/callback?provider=google` (plus any prod URLs).
+- Put values in `.env.local`:
+  - `GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (same value)
   - `GOOGLE_CLIENT_SECRET`
 
 ### Facebook
-- https://developers.facebook.com/ → Crea app (tipo **Consumer**) → abilita prodotto **Accesso con Facebook**.
-- Imposta redirect OAuth: `http://localhost:3000/oauth/callback?provider=facebook` (e URL di produzione).
-- Copia **ID app** / **Chiave segreta app** in `.env.local`:
+- https://developers.facebook.com/ → create app (Consumer) → enable **Facebook Login**.
+- Redirect URI: `http://localhost:3000/oauth/callback?provider=facebook` (plus prod URLs).
+- Put values in `.env.local`:
   - `FACEBOOK_CLIENT_ID` + `NEXT_PUBLIC_FACEBOOK_CLIENT_ID`
   - `FACEBOOK_CLIENT_SECRET`
 
-### Note
-- I `NEXT_PUBLIC_*` sono esposti al browser: contengono solo i clientId. I secret restano solo lato server (`/api/oauth/exchange`).
-- Riavvia `npm run dev` dopo aver modificato `.env.local`.
+Notes:
+- `NEXT_PUBLIC_*` are exposed to the browser (clientIds only). Secrets remain server-side in `/api/oauth/exchange`.
+- Restart `npm run dev` after editing `.env.local`.
 
-## Abilitare token-exchange e permessi IdP in Keycloak
+## Keycloak: enable token-exchange and IdP permissions
 
-1. Avvia Keycloak con le feature `token-exchange` e `admin-fine-grained-authz` attive (già in `docker-compose.yml`: `--features=token-exchange,admin-fine-grained-authz`).
-2. In Keycloak Admin, abilita le fine-grained admin permissions: `Realm settings -> Admin permissions -> Abilita`.
-3. Servizio account del client backend: `Clients -> social-login-backend -> Service account roles`, assegna `realm-management -> token-exchange` (già presente nell'export, verifica).
-4. Concedi il permesso di token-exchange sugli Identity Provider:
-   - `Identity Providers -> google -> Permissions -> abilita -> token-exchange`: aggiungi il client `social-login-backend` (policy basata sul client).
-   - Ripeti per `facebook` se usi anche quello.
-5. Gli alias degli IdP devono essere esattamente `google` e `facebook` (coincidono con `subject_issuer` inviato dal frontend).
+1. Start Keycloak with features `token-exchange,admin-fine-grained-authz` (already in `docker-compose.yml`).
+2. In Admin console: `Realm settings -> Admin permissions -> Enable`.
+3. Service account for backend client: `Clients -> social-login-backend -> Service account roles`, add `realm-management -> token-exchange` (already present in the export, verify).
+4. Grant token-exchange permission on each Identity Provider:
+   - `Identity Providers -> google -> Permissions -> enable -> token-exchange`: add client `social-login-backend` (client-based policy).
+   - Repeat for `facebook` if used.
+5. IdP aliases must be exactly `google` and `facebook` (match `subject_issuer` sent by the frontend).
 
-## Dettagli del flusso
+## Flow details
 
-1. L'utente sceglie Google o Facebook. Il frontend redirige al provider con `response_type=code` e stato salvato in `sessionStorage`.
-2. Il provider rimanda a `/oauth/callback?provider=...&code=...&state=...`; la page valida `state` e chiama `POST /api/oauth/exchange` che scambia il `code` per l'access token del provider (server-side, usando clientSecret).
-3. Il frontend passa `provider` + `subjectToken` (token social) + `subjectIssuer` al backend (`POST /auth/exchange`). L'API .NET invia a Keycloak un token exchange (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) usando il service account del client `social-login-backend`. Il service account possiede il ruolo `token-exchange` sul client `realm-management` (configurato nel realm import).
-4. Keycloak risponde con `access_token` + `refresh_token` per l'audience `social-login-backend`. Il backend restituisce il payload al frontend.
-5. Il frontend usa l'access token per invocare `/profile` (che chiama `/protocol/openid-connect/userinfo`) e può anche aggiornare i token via `POST /auth/refresh`.
+1) User picks Google/Facebook. Frontend redirects with `response_type=code` and stores `state` in `sessionStorage`.
+2) Provider returns to `/oauth/callback?provider=...&code=...&state=...`; page validates `state` and calls `POST /api/oauth/exchange` to swap the `code` for the provider access token (server-side using clientSecret).
+3) Frontend sends `provider` + `subjectToken` (social token) + `subjectIssuer` to backend (`POST /auth/exchange`). The API performs a Keycloak token exchange (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) using the `social-login-backend` service account (role `token-exchange` on `realm-management`).
+4) Keycloak returns `access_token` + `refresh_token` for audience `social-login-backend`; backend forwards payload to the frontend.
+5) Frontend uses the access token to call `/profile` (calls `/protocol/openid-connect/userinfo`) and can refresh via `POST /auth/refresh`.
 
-## File importanti
+## Notable files
 
-- `backend/src/SocialLogin.Api/Program.cs` – avvio minimal API, CORS, autenticazione e mapping endpoints con Scalar
-- `backend/src/SocialLogin.Api/Endpoints/*.cs` – definizione degli endpoint HTTP
-- `backend/src/SocialLogin.Application/*` – interfacce/contratti che disaccoppiano il dominio dall'infrastruttura
-- `backend/src/SocialLogin.Infrastructure/*` – implementazione di `IIdentityProviderClient` per Keycloak e binding delle opzioni
-- `frontend/app/page.tsx` – UI con bottoni Google/Facebook e gestione dello scambio token
-- `frontend/app/oauth/callback/page.tsx` – pagina di callback che scambia il code con il token social
-- `frontend/app/api/oauth/exchange/route.ts` – route Next che scambia il code con l'access token via client secret
-- `backend/Dockerfile`, `frontend/Dockerfile` – immagini per avviare i due servizi via Docker Compose
-- `keycloak/realm-social-demo.json` – realm già pronto (utente `demo/demo`, clients, service account)
-- `docker-compose.yml` – esegue Keycloak in dev mode con import automatico
+- `backend/src/SocialLogin.Api/Program.cs` – minimal API bootstrap, CORS, auth, endpoints + Scalar.
+- `backend/src/SocialLogin.Api/Endpoints/*.cs` – HTTP endpoints definitions.
+- `backend/src/SocialLogin.Infrastructure/*` – Keycloak integration implementing `IIdentityProviderClient`.
+- `frontend/app/page.tsx` – landing page with quick navigation of the 3-step flow.
+- `frontend/app/social/page.tsx` – real Google/Facebook login buttons and token capture.
+- `frontend/app/exchange/page.tsx` – exchanges social token with Keycloak.
+- `frontend/app/actions/page.tsx` – calls `/profile` and refreshes tokens.
+- `frontend/app/oauth/callback/page.tsx` – handles provider callback and saves tokens.
+- `frontend/app/api/oauth/exchange/route.ts` – Next route swapping code → provider token using the client secret.
+- `keycloak/realm-social-demo.json` – preconfigured realm (`demo/demo` user, clients, service account).
+- `docker-compose.yml` – runs Keycloak in dev mode with realm import.
 
-## Personalizzazione
+## Manual checks
 
-- **Agganciare un social reale**: sostituisci la route `/api/mock-social` richiamando l'SDK del provider desiderato. Il token ottenuto va inviato invariato a `/auth/exchange`.
-- **Configurare Keycloak**: apri l'admin console su `http://localhost:8181/admin`, vai su `Clients -> social-login-backend -> Service account roles` e assegna eventuali ulteriori permessi (es. limitare i client che possono essere "audience" del token exchange).
-- **Distribuire i servizi**: il compose attuale contiene solo Keycloak per semplicità. Puoi aggiungere backend/front come servizi extra oppure deployare ognuno separatamente.
+- `POST http://localhost:5188/auth/exchange` with a real `subjectToken` from Google/Facebook and `subjectIssuer` matching the IdP alias (`google` / `facebook`).
+- `POST http://localhost:5188/auth/refresh` using the returned refresh token.
+- `GET http://localhost:5188/profile` with `Authorization: Bearer <access_token>`.
 
-## Test manuali suggeriti
-
-- `POST http://localhost:5188/auth/exchange` passando un `subjectToken` ottenuto da Google/Facebook e `subjectIssuer` che coincide con l'alias IdP (`google`/`facebook`)
-- `POST http://localhost:5188/auth/refresh` usando il refresh token ricevuto
-- `GET http://localhost:5188/profile` con `Authorization: Bearer <access_token>`
-
-In questo modo hai un ciclo completo di social login via API e token exchange senza mai esporre l'interfaccia predefinita di Keycloak.
+This gives you a complete social-login-to-Keycloak flow using APIs only, no Keycloak UI involved.

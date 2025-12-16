@@ -76,6 +76,19 @@
       ],
       "optionalClientScopes": [
         "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-social-login-backend",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "social-login-backend",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
       ]
     },
     {
