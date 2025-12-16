@@ -1,7 +1,3 @@
----
-lang: en
----
-
 # Keycloak Social Login Demo
 
 End-to-end example that performs social login **without** using the Keycloak UI: the frontend gets a real Google/Facebook token, the backend exchanges it with Keycloak via token-exchange, and the resulting tokens are used to call protected APIs.
