@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 import { FlowShell } from "../components/FlowShell";
 import { useFlowState } from "../hooks/useFlowState";
+import { useI18n } from "../lib/i18n";
 import { facebookClientId, googleClientId } from "../lib/config";
 import type { Provider } from "../lib/types";
 import { providerLabel } from "../lib/types";
 
 export default function SocialLoginPage() {
-  const { socialToken, keycloakTokens, resetFlow } = useFlowState();
+  const { t } = useI18n();
+  const { socialToken, keycloakTokens } = useFlowState();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +23,7 @@ export default function SocialLoginPage() {
     setError("");
     const clientId = provider === "google" ? googleClientId : facebookClientId;
     if (!clientId) {
-      setError(`Config mancante per ${providerLabel[provider]} (NEXT_PUBLIC_${provider.toUpperCase()}_CLIENT_ID).`);
+      setError(t("social.error.missingConfig", { provider: providerLabel[provider], envVar: provider.toUpperCase() }));
       return;
     }
 
@@ -52,8 +54,8 @@ export default function SocialLoginPage() {
 
   return (
     <FlowShell
-      title="Login con provider social"
-      lead="Fai partire il redirect verso Google o Facebook. Al ritorno in callback salva il token reale del provider."
+      title={t("social.title")}
+      lead={t("social.lead")}
       socialToken={socialToken}
       keycloakTokens={keycloakTokens}
     >
@@ -67,7 +69,7 @@ export default function SocialLoginPage() {
               <path fill="#FBBC05" d="M12 4.96c1.48 0 2.81.52 3.86 1.55l2.89-2.9C16.94 1.93 14.7 1 12 1 8.08 1 4.66 3.06 3.12 6.99l3.5 2.73C7.3 6.67 9.46 4.96 12 4.96z" />
             </svg>
           </span>
-          Accedi con Google
+          {t("social.btn.google")}
         </button>
         <button className="button facebook" onClick={() => startSocialLogin("facebook")} disabled={loading}>
           <span className="provider-icon" aria-hidden>
@@ -75,28 +77,22 @@ export default function SocialLoginPage() {
               <path fill="currentColor" d="M22 12.07C22 6.48 17.52 2 11.93 2S1.86 6.48 1.86 12.07c0 5 3.66 9.14 8.44 9.93v-7.03H7.9v-2.9h2.4V9.86c0-2.38 1.42-3.7 3.6-3.7 1.04 0 2.12.18 2.12.18v2.33h-1.19c-1.17 0-1.53.73-1.53 1.48v1.78h2.6l-.42 2.9h-2.18V22c4.78-.79 8.44-4.93 8.44-9.93z" />
             </svg>
           </span>
-          Accedi con Facebook
+          {t("social.btn.facebook")}
         </button>
       </div>
-      {loading && <p className="muted">Reindirizzamento in corso...</p>}
+      {loading && <p className="muted">{t("social.redirecting")}</p>}
       {error && <p className="pill warning">{error}</p>}
 
       {socialToken?.token?.access_token && (
         <div className="panel">
           <div className="section-title">
-            <h3>Token ottenuto da {providerLabel[socialToken.provider]}</h3>
-            <span className="pill success">pronto</span>
+            <h3>{t("social.token.title", { provider: providerLabel[socialToken.provider] })}</h3>
+            <span className="pill success">{t("social.status.ready")}</span>
           </div>
-          <p className="muted small">Dopo il redirect il token viene salvato in sessionStorage per usarlo negli step successivi.</p>
+          <p className="muted small">{t("social.token.saved")}</p>
           <div className="log-box">{socialToken.token.access_token}</div>
         </div>
       )}
-
-      <div className="reset-row">
-        <button className="button secondary" onClick={resetFlow} disabled={loading}>
-          Reset flow
-        </button>
-      </div>
     </FlowShell>
   );
 }

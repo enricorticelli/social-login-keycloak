@@ -2,13 +2,15 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useI18n } from "../../lib/i18n";
 import { saveKeycloakTokens, saveSocialToken } from "../../lib/storage";
 import type { Provider } from "../../lib/types";
 
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [message, setMessage] = useState("Elaboro il login...");
+  const { t } = useI18n();
+  const [message, setMessage] = useState(t("callback.processing"));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,20 +19,20 @@ function CallbackContent() {
     const state = searchParams.get("state");
 
     if (!provider || !code || !state) {
-      setError("Parametri mancanti nella callback.");
+      setError(t("callback.error.missing"));
       return;
     }
 
     const savedState = sessionStorage.getItem(`oauth_state_${provider}`);
     if (!savedState || savedState !== state) {
-      setError("State OAuth non valido. Riprova il login.");
+      setError(t("callback.error.state"));
       return;
     }
 
     const redirectUri = `${window.location.origin}/oauth/callback?provider=${provider}`;
 
     const exchangeToken = async () => {
-      setMessage("Scambio il code con il token del provider...");
+      setMessage(t("callback.exchange"));
       const response = await fetch("/api/oauth/exchange", {
         method: "POST",
         headers: {
@@ -41,24 +43,24 @@ function CallbackContent() {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error((payload as { error?: string }).error ?? "Impossibile ottenere il token dal provider");
+        throw new Error((payload as { error?: string }).error ?? t("callback.error.exchangeFailed"));
       }
 
       sessionStorage.removeItem(`oauth_state_${provider}`);
       saveKeycloakTokens(null);
       saveSocialToken({ provider, token: payload });
-      setMessage("Login riuscito, reindirizzamento in corso...");
+      setMessage(t("callback.success"));
       router.replace("/");
     };
 
     exchangeToken().catch(err => {
-      setError(err instanceof Error ? err.message : "Errore imprevisto");
+      setError(err instanceof Error ? err.message : t("common.error.unexpected"));
     });
-  }, [router, searchParams]);
+  }, [router, searchParams, t]);
 
   return (
     <main>
-      <h1>Callback login social</h1>
+      <h1>{t("callback.title")}</h1>
       {!error ? <p>{message}</p> : <p style={{ color: "#f87171" }}>{error}</p>}
     </main>
   );
@@ -66,7 +68,7 @@ function CallbackContent() {
 
 export default function OAuthCallbackPage() {
   return (
-    <Suspense fallback={<main><p>Elaboro il login...</p></main>}>
+    <Suspense fallback={<main><p>Processing login...</p></main>}>
       <CallbackContent />
     </Suspense>
   );

@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { FlowShell } from "../components/FlowShell";
 import { useFlowState } from "../hooks/useFlowState";
+import { useI18n } from "../lib/i18n";
 import { apiBase } from "../lib/config";
 import type { ProfilePayload } from "../lib/types";
 
 export default function ActionsPage() {
+  const { t } = useI18n();
   const { socialToken, keycloakTokens, setKeycloakTokens } = useFlowState();
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [error, setError] = useState("");
@@ -22,7 +24,7 @@ export default function ActionsPage() {
 
   const loadProfile = async () => {
     if (!keycloakTokens?.accessToken) {
-      setError("Nessun access token disponibile.");
+      setError(t("actions.error.noAccess"));
       return;
     }
     setLoading(true);
@@ -32,13 +34,13 @@ export default function ActionsPage() {
         headers: { Authorization: `Bearer ${keycloakTokens.accessToken}` }
       });
       if (!response.ok) {
-        throw new Error("Impossibile leggere il profilo");
+        throw new Error(t("actions.error.profileFailed"));
       }
       const payload = (await response.json()) as ProfilePayload;
       setProfile(payload);
       setActionsOk(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore imprevisto");
+      setError(err instanceof Error ? err.message : t("common.error.unexpected"));
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ export default function ActionsPage() {
 
   const refresh = async () => {
     if (!keycloakTokens?.refreshToken) {
-      setError("Nessun refresh token disponibile.");
+      setError(t("actions.error.noRefresh"));
       return;
     }
     setLoading(true);
@@ -59,11 +61,11 @@ export default function ActionsPage() {
       });
       const payload = (await response.json().catch(() => ({})));
       if (!response.ok) {
-        throw new Error("Refresh fallito");
+        throw new Error(t("actions.error.refreshFailed"));
       }
       setKeycloakTokens(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore imprevisto");
+      setError(err instanceof Error ? err.message : t("common.error.unexpected"));
     } finally {
       setLoading(false);
     }
@@ -71,8 +73,8 @@ export default function ActionsPage() {
 
   return (
     <FlowShell
-      title="Prova le API protette"
-      lead="Usa l'access token ottenuto dallo scambio per interrogare il backend o fare refresh."
+      title={t("actions.title")}
+      lead={t("actions.lead")}
       socialToken={socialToken}
       keycloakTokens={keycloakTokens}
       actionsOk={actionsOk}
@@ -80,28 +82,28 @@ export default function ActionsPage() {
       <div className="panel">
         <div className="section-title">
           <div>
-            <p className="step-eyebrow">Profile endpoint</p>
-            <h3>GET /profile</h3>
+            <p className="step-eyebrow">{t("actions.profile.eyebrow")}</p>
+            <h3>{t("actions.profile.title")}</h3>
           </div>
           <button className="button" onClick={loadProfile} disabled={loading || !keycloakTokens?.accessToken}>
-            {loading ? "In corso..." : "Leggi profilo"}
+            {loading ? t("actions.profile.loading") : t("actions.profile.button")}
           </button>
         </div>
-        <p className="muted">Richiede un access token valido emesso da Keycloak.</p>
+        <p className="muted">{t("actions.profile.info")}</p>
         {profile && <div className="log-box">{JSON.stringify(profile, null, 2)}</div>}
       </div>
 
       <div className="panel">
         <div className="section-title">
           <div>
-            <p className="step-eyebrow">Refresh</p>
-            <h3>POST /auth/refresh</h3>
+            <p className="step-eyebrow">{t("actions.refresh.eyebrow")}</p>
+            <h3>{t("actions.refresh.title")}</h3>
           </div>
           <button className="button secondary" onClick={refresh} disabled={loading || !keycloakTokens?.refreshToken}>
-            {loading ? "In corso..." : "Refresh token"}
+            {loading ? t("actions.refresh.loading") : t("actions.refresh.button")}
           </button>
         </div>
-        <p className="muted">Aggiorna i token usando il refresh token restituito da Keycloak.</p>
+        <p className="muted">{t("actions.refresh.info")}</p>
         {keycloakTokens && <div className="log-box">{JSON.stringify(keycloakTokens, null, 2)}</div>}
       </div>
 

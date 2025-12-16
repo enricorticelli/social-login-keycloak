@@ -3,17 +3,19 @@
 import { useState } from "react";
 import { FlowShell } from "../components/FlowShell";
 import { useFlowState } from "../hooks/useFlowState";
+import { useI18n } from "../lib/i18n";
 import { apiBase } from "../lib/config";
 import { providerLabel } from "../lib/types";
 
 export default function ExchangePage() {
+  const { t } = useI18n();
   const { socialToken, keycloakTokens, setKeycloakTokens } = useFlowState();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const exchangeWithKeycloak = async () => {
     if (!socialToken?.token?.access_token) {
-      setError("Completa prima il login con Google o Facebook.");
+      setError(t("exchange.error.noSocial"));
       return;
     }
     setLoading(true);
@@ -30,11 +32,11 @@ export default function ExchangePage() {
       });
       const payload = (await response.json().catch(() => ({})));
       if (!response.ok) {
-        throw new Error((payload as { detail?: string }).detail ?? "Keycloak ha rifiutato il token");
+        throw new Error((payload as { detail?: string }).detail ?? t("exchange.error.denied"));
       }
       setKeycloakTokens(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Errore imprevisto");
+      setError(err instanceof Error ? err.message : t("common.error.unexpected"));
     } finally {
       setLoading(false);
     }
@@ -42,25 +44,25 @@ export default function ExchangePage() {
 
   return (
     <FlowShell
-      title="Scambia il token con Keycloak"
-      lead="Invia il token del provider alle API backend e ottieni access / refresh token firmati da Keycloak."
+      title={t("exchange.title")}
+      lead={t("exchange.lead")}
       socialToken={socialToken}
       keycloakTokens={keycloakTokens}
     >
       <div className="panel">
         <div className="section-title">
           <div>
-            <p className="step-eyebrow">Richiesta</p>
-            <h3>Token exchange</h3>
+            <p className="step-eyebrow">{t("exchange.request.eyebrow")}</p>
+            <h3>{t("exchange.request.title")}</h3>
           </div>
           <button className="button" onClick={exchangeWithKeycloak} disabled={loading || !socialToken?.token?.access_token}>
-            {loading ? "Scambio in corso..." : "Scambia token"}
+            {loading ? t("exchange.button.loading") : t("exchange.button.exchange")}
           </button>
         </div>
         {socialToken?.token?.access_token ? (
-          <p className="muted">Stai inviando il token reale di {providerLabel[socialToken.provider]} come subject token.</p>
+          <p className="muted">{t("exchange.info.sending", { provider: providerLabel[socialToken.provider] })}</p>
         ) : (
-          <p className="pill warning">Serve prima un token social valido.</p>
+          <p className="pill warning">{t("exchange.warning.needSocial")}</p>
         )}
         {error && <p className="pill warning" style={{ marginTop: "0.75rem" }}>{error}</p>}
       </div>
@@ -69,10 +71,10 @@ export default function ExchangePage() {
         <div className="panel">
           <div className="section-title">
             <div>
-              <p className="step-eyebrow">Risposta Keycloak</p>
-              <h3>Token ottenuti</h3>
+              <p className="step-eyebrow">{t("exchange.response.eyebrow")}</p>
+              <h3>{t("exchange.response.title")}</h3>
             </div>
-            <span className="pill success">access + refresh</span>
+            <span className="pill success">{t("exchange.response.pill")}</span>
           </div>
           <div className="log-box">{JSON.stringify(keycloakTokens, null, 2)}</div>
         </div>
