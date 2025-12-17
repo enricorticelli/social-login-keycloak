@@ -61,23 +61,39 @@ Fill Google/Facebook clientId/clientSecret as shown below.
 
 ## OAuth credentials (Google / Facebook)
 
+All OAuth credentials are now configured **only in the backend** (`appsettings.json` or environment variables). The frontend never sees clientId or clientSecret.
+
 ### Google
 - https://console.cloud.google.com/apis/credentials → create **OAuth client** (web app).
 - Authorized redirect URI: `http://localhost:3000/oauth/callback?provider=google` (plus any production URLs).
-- Set in `.env.local`:
-  - `GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (same value)
-  - `GOOGLE_CLIENT_SECRET`
+- Set in `backend/src/SocialLogin.Api/appsettings.json`:
+  ```json
+  "SocialProviders": {
+    "Google": {
+      "ClientId": "your-google-client-id",
+      "ClientSecret": "your-google-client-secret"
+    }
+  }
+  ```
+  Or via environment variables: `SocialProviders__Google__ClientId`, `SocialProviders__Google__ClientSecret`.
 
 ### Facebook
 - https://developers.facebook.com/ → create app (type **Consumer**) → enable **Facebook Login**.
 - Redirect URI: `http://localhost:3000/oauth/callback?provider=facebook` (plus production URLs).
-- Set in `.env.local`:
-  - `FACEBOOK_CLIENT_ID` + `NEXT_PUBLIC_FACEBOOK_CLIENT_ID`
-  - `FACEBOOK_CLIENT_SECRET`
+- Set in `backend/src/SocialLogin.Api/appsettings.json`:
+  ```json
+  "SocialProviders": {
+    "Facebook": {
+      "ClientId": "your-facebook-client-id",
+      "ClientSecret": "your-facebook-client-secret"
+    }
+  }
+  ```
+  Or via environment variables: `SocialProviders__Facebook__ClientId`, `SocialProviders__Facebook__ClientSecret`.
 
 Notes:
-- `NEXT_PUBLIC_*` values are exposed to the browser (clientId only). Secrets stay server-side in `/api/oauth/exchange`.
-- Restart `npm run dev` after changes to `.env.local`.
+- No OAuth secrets are exposed to the browser. The frontend only calls the backend to get the authorization URL.
+- Restart the backend after changes to `appsettings.json`.
 
 ## Keycloak: token-exchange and IdP permissions
 
@@ -91,28 +107,32 @@ Notes:
 
 ## Flow details
 
-1) User chooses Google/Facebook. Frontend redirects with `response_type=code` and saves `state` in sessionStorage.
-2) Provider returns to `/oauth/callback?provider=...&code=...&state=...`; the page validates `state` and calls `POST /api/oauth/exchange` to trade the `code` for the provider access token (server-side, using the clientSecret).
-3) Frontend sends `provider` + `subjectToken` (social token) + `subjectIssuer` to the backend (`POST /auth/exchange`). The API performs a Keycloak token exchange (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) using the service account of `social-login-backend` (role `token-exchange` on `realm-management`).
-4) Keycloak returns `access_token` + `refresh_token` for audience `social-login-backend`; the backend relays the payload to the frontend.
-5) The frontend uses the access token for `/profile` (calling `/protocol/openid-connect/userinfo`) and can refresh via `POST /auth/refresh`.
+1) User chooses Google/Facebook. Frontend calls `GET /auth/social/{provider}/authorize-url` to get the authorization URL and state from the backend.
+2) Frontend redirects the user to the provider's authorization page.
+3) Provider returns to `/oauth/callback?provider=...&code=...&state=...`; the page validates `state` and calls `POST /auth/social/{provider}/exchange` to trade the `code` for the provider access token (backend handles clientId/clientSecret).
+4) Frontend sends `provider` + `subjectToken` (social token) + `subjectIssuer` to the backend (`POST /auth/exchange`). The API performs a Keycloak token exchange (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) using the service account of `social-login-backend` (role `token-exchange` on `realm-management`).
+5) Keycloak returns `access_token` + `refresh_token` for audience `social-login-backend`; the backend relays the payload to the frontend.
+6) The frontend uses the access token for `/profile` (calling `/protocol/openid-connect/userinfo`) and can refresh via `POST /auth/refresh`.
 
 ## Key files
 
 - `backend/src/SocialLogin.Api/Program.cs` – bootstrap minimal API, CORS, auth, endpoints + Scalar.
-- `backend/src/SocialLogin.Api/Endpoints/*.cs` – HTTP endpoint definitions.
+- `backend/src/SocialLogin.Api/Endpoints/*.cs` – HTTP endpoint definitions (including `SocialAuthEndpoints.cs` for OAuth flow).
+- `backend/src/SocialLogin.Api/appsettings.json` – configuration including `SocialProviders` with Google/Facebook credentials.
+- `backend/src/SocialLogin.Infrastructure/Services/SocialAuthService.cs` – generates authorization URLs and exchanges codes for tokens.
 - `backend/src/SocialLogin.Infrastructure/*` – Keycloak integration implementing `IIdentityProviderClient`.
 - `frontend/app/page.tsx` – landing with quick navigation of the 3 steps.
-- `frontend/app/social/page.tsx` – real Google/Facebook buttons and token capture.
+- `frontend/app/social/page.tsx` – Google/Facebook buttons that call the backend to get the authorization URL.
 - `frontend/app/exchange/page.tsx` – exchange the social token with Keycloak.
 - `frontend/app/actions/page.tsx` – call `/profile` and handle refresh.
-- `frontend/app/oauth/callback/page.tsx` – handles IdP callback and saves tokens.
-- `frontend/app/api/oauth/exchange/route.ts` – Next route to swap code for provider token using the client secret.
+- `frontend/app/oauth/callback/page.tsx` – handles IdP callback and calls backend to exchange code for token.
 - `keycloak/realm-social-demo.json` – realm ready to go (user `demo/demo`, clients, service account).
 - `docker-compose.yml` – runs Keycloak in dev mode with realm import.
 
 ## Manual tests
 
+- `GET http://localhost:5188/auth/social/google/authorize-url?redirectUri=http://localhost:3000/oauth/callback?provider=google` – get authorization URL.
+- `POST http://localhost:5188/auth/social/google/exchange` with `{ "code": "...", "redirectUri": "..." }` – exchange code for social token.
 - `POST http://localhost:5188/auth/exchange` with a real `subjectToken` and `subjectIssuer` matching the IdP alias (`google` / `facebook`).
 - `POST http://localhost:5188/auth/refresh` using the received refresh token.
 - `GET http://localhost:5188/profile` with `Authorization: Bearer <access_token>`.

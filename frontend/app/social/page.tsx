@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { FlowShell } from "../components/FlowShell";
 import { useFlowState } from "../hooks/useFlowState";
 import { useI18n } from "../lib/i18n";
-import { facebookClientId, googleClientId } from "../lib/config";
+import { apiBase } from "../lib/config";
 import type { Provider } from "../lib/types";
 import { providerLabel } from "../lib/types";
 
@@ -19,37 +19,28 @@ export default function SocialLoginPage() {
     return `${window.location.origin}/oauth/callback`;
   }, []);
 
-  const startSocialLogin = (provider: Provider) => {
+  const startSocialLogin = async (provider: Provider) => {
     setError("");
-    const clientId = provider === "google" ? googleClientId : facebookClientId;
-    if (!clientId) {
-      setError(t("social.error.missingConfig", { provider: providerLabel[provider], envVar: provider.toUpperCase() }));
-      return;
-    }
-
-    const redirectUri = `${redirectUriBase}?provider=${provider}`;
-    const state = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    const baseAuthUrl = provider === "google"
-      ? "https://accounts.google.com/o/oauth2/v2/auth"
-      : "https://www.facebook.com/v19.0/dialog/oauth";
-    const scope = provider === "google" ? "openid email profile" : "public_profile,email";
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope,
-      state
-    });
-
-    if (provider === "google") {
-      params.set("access_type", "offline");
-      params.set("prompt", "consent");
-    }
-
-    sessionStorage.setItem(`oauth_state_${provider}`, state);
     setLoading(true);
-    window.location.href = `${baseAuthUrl}?${params.toString()}`;
+
+    try {
+      const redirectUri = `${redirectUriBase}?provider=${provider}`;
+      const response = await fetch(
+        `${apiBase}/auth/social/${provider}/authorize-url?redirectUri=${encodeURIComponent(redirectUri)}`
+      );
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload as { detail?: string }).detail ?? t("social.error.urlFetch"));
+      }
+
+      const { authorizeUrl, state } = await response.json() as { authorizeUrl: string; state: string };
+      sessionStorage.setItem(`oauth_state_${provider}`, state);
+      window.location.href = authorizeUrl;
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : t("common.error.unexpected"));
+    }
   };
 
   return (

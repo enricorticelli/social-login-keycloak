@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\SocialLogin.Application\\SocialLogin.Application.csproj" />
+    <ProjectReference Include="..\\SocialLogin.Domain\\SocialLogin.Domain.csproj" />
     <ProjectReference Include="..\\SocialLogin.Infrastructure\\SocialLogin.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

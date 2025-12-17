@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useI18n } from "../../lib/i18n";
+import { apiBase } from "../../lib/config";
 import { saveKeycloakTokens, saveSocialToken } from "../../lib/storage";
 import type { Provider } from "../../lib/types";
 
@@ -33,22 +34,41 @@ function CallbackContent() {
 
     const exchangeToken = async () => {
       setMessage(t("callback.exchange"));
-      const response = await fetch("/api/oauth/exchange", {
+      const response = await fetch(`${apiBase}/auth/social/${provider}/exchange`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ provider, code, redirectUri })
+        body: JSON.stringify({ code, redirectUri })
       });
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error((payload as { error?: string }).error ?? t("callback.error.exchangeFailed"));
+        throw new Error((payload as { detail?: string }).detail ?? t("callback.error.exchangeFailed"));
       }
 
       sessionStorage.removeItem(`oauth_state_${provider}`);
       saveKeycloakTokens(null);
-      saveSocialToken({ provider, token: payload });
+      // Mappiamo la risposta camelCase dal backend
+      const tokenPayload = payload as {
+        accessToken: string;
+        tokenType?: string;
+        expiresIn?: number;
+        refreshToken?: string;
+        idToken?: string;
+        scope?: string;
+      };
+      saveSocialToken({
+        provider,
+        token: {
+          access_token: tokenPayload.accessToken,
+          token_type: tokenPayload.tokenType,
+          expires_in: tokenPayload.expiresIn,
+          refresh_token: tokenPayload.refreshToken,
+          id_token: tokenPayload.idToken,
+          scope: tokenPayload.scope
+        }
+      });
       setMessage(t("callback.success"));
       router.replace("/");
     };

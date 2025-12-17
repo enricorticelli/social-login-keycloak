@@ -68,6 +68,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapAuthEndpoints();
+app.MapSocialAuthEndpoints();
 app.MapProfileEndpoints();
 
 app.Run();

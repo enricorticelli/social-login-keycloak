@@ -61,23 +61,39 @@ Compila i clientId/clientSecret di Google/Facebook come indicato sotto.
 
 ## Credenziali OAuth (Google / Facebook)
 
+Tutte le credenziali OAuth sono ora configurate **solo nel backend** (`appsettings.json` o variabili d'ambiente). Il frontend non vede mai clientId o clientSecret.
+
 ### Google
 - https://console.cloud.google.com/apis/credentials → crea **OAuth client** (app web).
 - URI di redirect autorizzato: `http://localhost:3000/oauth/callback?provider=google` (più eventuali URL di produzione).
-- Inserisci in `.env.local`:
-  - `GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (stesso valore)
-  - `GOOGLE_CLIENT_SECRET`
+- Inserisci in `backend/src/SocialLogin.Api/appsettings.json`:
+  ```json
+  "SocialProviders": {
+    "Google": {
+      "ClientId": "your-google-client-id",
+      "ClientSecret": "your-google-client-secret"
+    }
+  }
+  ```
+  Oppure via variabili d'ambiente: `SocialProviders__Google__ClientId`, `SocialProviders__Google__ClientSecret`.
 
 ### Facebook
 - https://developers.facebook.com/ → crea app (tipo **Consumer**) → abilita **Facebook Login**.
 - Redirect URI: `http://localhost:3000/oauth/callback?provider=facebook` (più URL di produzione).
-- Inserisci in `.env.local`:
-  - `FACEBOOK_CLIENT_ID` + `NEXT_PUBLIC_FACEBOOK_CLIENT_ID`
-  - `FACEBOOK_CLIENT_SECRET`
+- Inserisci in `backend/src/SocialLogin.Api/appsettings.json`:
+  ```json
+  "SocialProviders": {
+    "Facebook": {
+      "ClientId": "your-facebook-client-id",
+      "ClientSecret": "your-facebook-client-secret"
+    }
+  }
+  ```
+  Oppure via variabili d'ambiente: `SocialProviders__Facebook__ClientId`, `SocialProviders__Facebook__ClientSecret`.
 
 Note:
-- I `NEXT_PUBLIC_*` sono esposti al browser (solo clientId). I secret restano lato server in `/api/oauth/exchange`.
-- Riavvia `npm run dev` dopo le modifiche a `.env.local`.
+- Nessun secret OAuth è esposto al browser. Il frontend chiama solo il backend per ottenere l'URL di autorizzazione.
+- Riavvia il backend dopo le modifiche a `appsettings.json`.
 
 ## Keycloak: token-exchange e permessi IdP
 
@@ -91,11 +107,12 @@ Note:
 
 ## Dettagli del flusso
 
-1) L’utente sceglie Google/Facebook. Il frontend redirige con `response_type=code` e salva `state` in `sessionStorage`.
-2) Il provider torna su `/oauth/callback?provider=...&code=...&state=...`; la page valida `state` e chiama `POST /api/oauth/exchange` per scambiare il `code` con l’access token del provider (server-side, usando il clientSecret).
-3) Il frontend invia `provider` + `subjectToken` (token social) + `subjectIssuer` al backend (`POST /auth/exchange`). L’API effettua un token exchange Keycloak (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) usando il service account di `social-login-backend` (ruolo `token-exchange` su `realm-management`).
-4) Keycloak restituisce `access_token` + `refresh_token` per audience `social-login-backend`; il backend gira il payload al frontend.
-5) Il frontend usa l’access token per `/profile` (che chiama `/protocol/openid-connect/userinfo`) e può fare refresh via `POST /auth/refresh`.
+1) L'utente sceglie Google/Facebook. Il frontend chiama `GET /auth/social/{provider}/authorize-url` per ottenere l'URL di autorizzazione e lo state dal backend.
+2) Il frontend redirige l'utente alla pagina di autorizzazione del provider.
+3) Il provider torna su `/oauth/callback?provider=...&code=...&state=...`; la page valida `state` e chiama `POST /auth/social/{provider}/exchange` per scambiare il `code` con l'access token del provider (il backend gestisce clientId/clientSecret).
+4) Il frontend invia `provider` + `subjectToken` (token social) + `subjectIssuer` al backend (`POST /auth/exchange`). L'API effettua un token exchange Keycloak (`grant_type=urn:ietf:params:oauth:grant-type:token-exchange`) usando il service account di `social-login-backend` (ruolo `token-exchange` su `realm-management`).
+5) Keycloak restituisce `access_token` + `refresh_token` per audience `social-login-backend`; il backend gira il payload al frontend.
+6) Il frontend usa l'access token per `/profile` (che chiama `/protocol/openid-connect/userinfo`) e può fare refresh via `POST /auth/refresh`.
 
 ## File principali
 
@@ -113,7 +130,9 @@ Note:
 
 ## Test manuali
 
-- `POST http://localhost:5188/auth/exchange` passando un `subjectToken` reale e `subjectIssuer` che coincide con l’alias IdP (`google` / `facebook`).
+- `GET http://localhost:5188/auth/social/google/authorize-url?redirectUri=http://localhost:3000/oauth/callback?provider=google` – ottieni URL di autorizzazione.
+- `POST http://localhost:5188/auth/social/google/exchange` con `{ "code": "...", "redirectUri": "..." }` – scambia il code per il token social.
+- `POST http://localhost:5188/auth/exchange` passando un `subjectToken` reale e `subjectIssuer` che coincide con l'alias IdP (`google` / `facebook`).
 - `POST http://localhost:5188/auth/refresh` usando il refresh token ricevuto.
 - `GET http://localhost:5188/profile` con `Authorization: Bearer <access_token>`.
 

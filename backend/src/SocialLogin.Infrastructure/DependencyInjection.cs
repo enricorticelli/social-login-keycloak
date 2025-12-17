@@ -13,6 +13,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<KeycloakOptions>(configuration.GetSection(KeycloakOptions.SectionName));
+        services.Configure<SocialProvidersOptions>(configuration.GetSection(SocialProvidersOptions.SectionName));
 
         services.AddHttpClient<IIdentityProviderClient, KeycloakIdentityProviderClient>((provider, client) =>
         {
@@ -31,6 +32,8 @@ public static class DependencyInjection
             client.BaseAddress = new Uri($"{options.Authority.TrimEnd('/')}/realms/{normalizedRealm}/");
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         });
+
+        services.AddHttpClient<ISocialAuthService, SocialAuthService>();
 
         return services;
     }
